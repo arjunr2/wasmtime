@@ -74,6 +74,23 @@ pub struct RunCommon {
     )]
     pub profile: Option<Profile>,
 
+    /// Record the module execution
+    ///
+    /// Enabling this option will produce a Trace on module execution in the provided
+    /// endpoint. This trace can then subsequently be passed to the `--replay` generate
+    /// a equivalent run of the program.
+    ///
+    /// Note that determinism will be enforced during recording by default (NaN canonicalization)
+    #[arg(long, value_name = "TRACE_PATH")]
+    pub record: Option<String>,
+
+    /// Run a replay of the module according to a Trace file
+    ///
+    /// Replay executions will always be deterministic, and will mock all invoked
+    /// host calls made by the module with the respective trace results.
+    #[arg(long, value_name = "TRACE_PATH")]
+    pub replay: Option<String>,
+
     /// Grant access of a host directory to a guest.
     ///
     /// If specified as just `HOST_DIR` then the same directory name on the
