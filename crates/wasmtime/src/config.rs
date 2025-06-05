@@ -230,39 +230,32 @@ pub enum RRConfig {
 }
 
 impl RRConfig {
-    /// Test if execution recording is enabled ([`Self::Record`])
-    pub fn record_enabled(&self) -> bool {
-        if let Self::Record(_) = self {
-            true
-        } else {
-            false
+    /// Test if execution recording is enabled (i.e, variant [`Self::Record`]), and wrap
+    /// the corresponding path
+    pub fn record(&self) -> Option<&String> {
+        match self {
+            Self::Record(p) => Some(p),
+            _ => None,
         }
     }
-    /// Extract the record path. Panics if not an [`Self::Record`]
-    pub fn unwrap_record(&self) -> &String {
-        if let Self::Record(path) = self {
-            path
-        } else {
-            panic!("missing path to recording trace (specify `--record` option)")
-        }
+    /// Extract the record path. Panics if not a [`Self::Record`]
+    pub fn record_unwrap(&self) -> &String {
+        self.record()
+            .expect("missing path to recording trace (specify `--record` option)")
     }
 
-    /// Test if execution replay is enabled ([`Self::Replay`])
-    pub fn replay_enabled(&self) -> bool {
-        if let Self::Replay(_) = self {
-            true
-        } else {
-            false
+    /// Test if execution replay is enabled (i.e. variant [`Self::Replay`]), and wrap
+    /// the corresponding path
+    pub fn replay(&self) -> Option<&String> {
+        match self {
+            Self::Replay(p) => Some(p),
+            _ => None,
         }
     }
-
     /// Extract the replay path. Panics if not a [`Self::Replay`]
-    pub fn unwrap_replay(&self) -> &String {
-        if let Self::Replay(path) = self {
-            path
-        } else {
-            panic!("missing path to replay trace (specify `--replay` option)")
-        }
+    pub fn replay_unwrap(&self) -> &String {
+        self.replay()
+            .expect("missing path to recording trace (specify `--record` option)")
     }
 }
 
@@ -2676,17 +2669,17 @@ impl Config {
 
     /// Configure the record/replay options for use by the runtime
     ///
-    /// These options are derived from CLI configuration [`RROptions`], which
-    /// enforce that both record and replay cannot both be set simultaneously.
+    /// These options are derived from CLI configuration, which
+    /// enforces that both record and replay cannot both be set simultaneously.
     pub fn rr(&mut self, record_path: &Option<String>, replay_path: &Option<String>) {
-        if record_path.is_some() && replay_path.is_some() {
+        self.rr = match (record_path, replay_path) {
             // Should be unreachable
-            panic!("Cannot set both record and replay simultaneously for execution");
-        }
-        if let Some(rpath) = record_path {
-            self.rr = Some(RRConfig::Record(rpath.into()));
-        } else if let Some(rpath) = replay_path {
-            self.rr = Some(RRConfig::Replay(rpath.into()));
+            (Some(_), Some(_)) => {
+                panic!("Cannot set both record and replay simultaneously for execution")
+            }
+            (Some(p), None) => Some(RRConfig::Record(p.into())),
+            (None, Some(p)) => Some(RRConfig::Replay(p.into())),
+            _ => None,
         }
     }
 }

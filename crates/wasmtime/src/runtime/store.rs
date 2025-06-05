@@ -394,6 +394,15 @@ pub struct StoreOpaque {
     /// For example if Pulley is enabled and configured then this will store a
     /// Pulley interpreter.
     executor: Executor,
+
+    /// Storage for recording execution
+    ///
+    /// `None` implies recording is disabled for this store
+    record_buffer: Option<Vec<u8>>,
+    /// Storage for replaying execution
+    ///
+    /// `None` implies replay is disabled for this store
+    replay_buffer: Option<Vec<u8>>,
 }
 
 /// Executor state within `StoreOpaque`.
@@ -578,6 +587,8 @@ impl<T> Store<T> {
                 debug_assert!(engine.target().is_pulley());
                 Executor::Interpreter(Interpreter::new(engine))
             },
+            record_buffer: engine.rr().and_then(|x| x.record().and(Some(Vec::new()))),
+            replay_buffer: engine.rr().and_then(|x| x.replay().and(Some(Vec::new()))),
         };
         let mut inner = Box::new(StoreInner {
             inner,
