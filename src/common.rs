@@ -5,7 +5,7 @@ use clap::Parser;
 use std::net::TcpListener;
 use std::{fs::File, path::Path, time::Duration};
 use wasmtime::{Engine, Module, Precompiled, StoreLimits, StoreLimitsBuilder};
-use wasmtime_cli_flags::{CommonOptions, opt::WasmtimeOptionValue};
+use wasmtime_cli_flags::{CommonOptions, RROptions, opt::WasmtimeOptionValue};
 use wasmtime_wasi::p2::WasiCtxBuilder;
 use wasmtime_wasi::p2::bindings::LinkOptions;
 
@@ -43,6 +43,9 @@ pub struct RunCommon {
     #[command(flatten)]
     pub common: CommonOptions,
 
+    #[command(flatten)]
+    pub rr: RROptions,
+
     /// Allow executing precompiled WebAssembly modules as `*.cwasm` files.
     ///
     /// Note that this option is not safe to pass if the module being passed in
@@ -73,23 +76,6 @@ pub struct RunCommon {
         value_parser = Profile::parse,
     )]
     pub profile: Option<Profile>,
-
-    /// Record the module execution
-    ///
-    /// Enabling this option will produce a Trace on module execution in the provided
-    /// endpoint. This trace can then subsequently be passed to the `--replay` generate
-    /// a equivalent run of the program.
-    ///
-    /// Note that determinism will be enforced during recording by default (NaN canonicalization)
-    #[arg(long, value_name = "TRACE_PATH")]
-    pub record: Option<String>,
-
-    /// Run a replay of the module according to a Trace file
-    ///
-    /// Replay executions will always be deterministic, and will mock all invoked
-    /// host calls made by the module with the respective trace results.
-    #[arg(long, value_name = "TRACE_PATH")]
-    pub replay: Option<String>,
 
     /// Grant access of a host directory to a guest.
     ///

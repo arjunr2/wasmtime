@@ -1,7 +1,7 @@
 //! Contains the common Wasmtime command line interface (CLI) flags.
 
 use anyhow::{Context, Result};
-use clap::Parser;
+use clap::{Args, Parser};
 use serde::Deserialize;
 use std::{
     fmt, fs,
@@ -1247,5 +1247,48 @@ impl fmt::Display for CommonOptions {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Args)]
+#[group(multiple = false)]
+pub struct RROptions {
+    /// Record the module execution
+    ///
+    /// Enabling this option will produce a Trace on module execution in the provided
+    /// endpoint. This trace can then subsequently be passed to the `--replay` generate
+    /// a equivalent run of the program.
+    ///
+    /// Note that determinism will be enforced during recording by default (NaN canonicalization)
+    #[arg(long, value_name = "TRACE_PATH")]
+    pub record: Option<String>,
+
+    /// Run a replay of the module according to a Trace file
+    ///
+    /// Replay executions will always be deterministic, and will mock all invoked
+    /// host calls made by the module with the respective trace results.
+    #[arg(long, value_name = "TRACE_PATH")]
+    pub replay: Option<String>,
+}
+
+impl RROptions {
+    pub fn record_enabled(&self) -> bool {
+        self.record.is_some()
+    }
+    pub fn unwrap_record_path(&self) -> &String {
+        match &self.record {
+            None => panic!("cannot unwrap path to recording trace, specify `--record`"),
+            Some(path) => &path,
+        }
+    }
+
+    pub fn replay_enabled(&self) -> bool {
+        self.replay.is_some()
+    }
+    pub fn unwrap_replay_path(&self) -> &String {
+        match &self.record {
+            None => panic!("cannot unwrap path to replay trace, specify `--replay`"),
+            Some(path) => path,
+        }
     }
 }
