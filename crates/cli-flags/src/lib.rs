@@ -1270,25 +1270,3 @@ pub struct RROptions {
     #[arg(long, value_name = "TRACE_PATH")]
     pub replay: Option<String>,
 }
-
-impl RROptions {
-    pub fn record_enabled(&self) -> bool {
-        self.record.is_some()
-    }
-    pub fn unwrap_record_path(&self) -> &String {
-        match &self.record {
-            None => panic!("cannot unwrap path to recording trace, specify `--record`"),
-            Some(path) => &path,
-        }
-    }
-
-    pub fn replay_enabled(&self) -> bool {
-        self.replay.is_some()
-    }
-    pub fn unwrap_replay_path(&self) -> &String {
-        match &self.record {
-            None => panic!("cannot unwrap path to replay trace, specify `--replay`"),
-            Some(path) => path,
-        }
-    }
-}

@@ -163,6 +163,7 @@ pub struct Config {
     pub(crate) coredump_on_trap: bool,
     pub(crate) macos_use_mach_ports: bool,
     pub(crate) detect_host_feature: Option<fn(&str) -> Option<bool>>,
+    pub(crate) rr: Option<RRConfig>,
 }
 
 /// User-provided configuration for the compiler.
@@ -219,6 +220,52 @@ impl Default for CompilerConfig {
     }
 }
 
+/// Configuration for record/replay targets
+#[derive(Debug, Clone)]
+pub enum RRConfig {
+    /// Recording trace filepath
+    Record(String),
+    /// Replay trace filepath
+    Replay(String),
+}
+
+impl RRConfig {
+    /// Test if execution recording is enabled ([`Self::Record`])
+    pub fn record_enabled(&self) -> bool {
+        if let Self::Record(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+    /// Extract the record path. Panics if not an [`Self::Record`]
+    pub fn unwrap_record(&self) -> &String {
+        if let Self::Record(path) = self {
+            path
+        } else {
+            panic!("missing path to recording trace (specify `--record` option)")
+        }
+    }
+
+    /// Test if execution replay is enabled ([`Self::Replay`])
+    pub fn replay_enabled(&self) -> bool {
+        if let Self::Replay(_) = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Extract the replay path. Panics if not a [`Self::Replay`]
+    pub fn unwrap_replay(&self) -> &String {
+        if let Self::Replay(path) = self {
+            path
+        } else {
+            panic!("missing path to replay trace (specify `--replay` option)")
+        }
+    }
+}
+
 impl Config {
     /// Creates a new configuration object with the default configuration
     /// specified.
@@ -271,6 +318,7 @@ impl Config {
             detect_host_feature: Some(detect_host_feature),
             #[cfg(not(feature = "std"))]
             detect_host_feature: None,
+            rr: None,
         };
         #[cfg(any(feature = "cranelift", feature = "winch"))]
         {
@@ -2624,6 +2672,22 @@ impl Config {
     pub fn signals_based_traps(&mut self, enable: bool) -> &mut Self {
         self.tunables.signals_based_traps = Some(enable);
         self
+    }
+
+    /// Configure the record/replay options for use by the runtime
+    ///
+    /// These options are derived from CLI configuration [`RROptions`], which
+    /// enforce that both record and replay cannot both be set simultaneously.
+    pub fn rr(&mut self, record_path: &Option<String>, replay_path: &Option<String>) {
+        if record_path.is_some() && replay_path.is_some() {
+            // Should be unreachable
+            panic!("Cannot set both record and replay simultaneously for execution");
+        }
+        if let Some(rpath) = record_path {
+            self.rr = Some(RRConfig::Record(rpath.into()));
+        } else if let Some(rpath) = replay_path {
+            self.rr = Some(RRConfig::Replay(rpath.into()));
+        }
     }
 }
 
