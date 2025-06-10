@@ -230,7 +230,7 @@ pub enum RRConfig {
 }
 
 impl RRConfig {
-    /// Test if execution recording is enabled (i.e, variant [`Self::Record`]), and wrap
+    /// Test if execution recording is enabled (i.e, variant [`RRConfig::Record`]), and wrap
     /// the corresponding path
     pub fn record(&self) -> Option<&String> {
         match self {
@@ -238,13 +238,13 @@ impl RRConfig {
             _ => None,
         }
     }
-    /// Extract the record path. Panics if not a [`Self::Record`]
+    /// Extract the record path. Panics if not a [`RRConfig::Record`]
     pub fn record_unwrap(&self) -> &String {
         self.record()
             .expect("missing path to recording trace (specify `--record` option)")
     }
 
-    /// Test if execution replay is enabled (i.e. variant [`Self::Replay`]), and wrap
+    /// Test if execution replay is enabled (i.e. variant [`RRConfig::Replay`]), and wrap
     /// the corresponding path
     pub fn replay(&self) -> Option<&String> {
         match self {
@@ -252,7 +252,7 @@ impl RRConfig {
             _ => None,
         }
     }
-    /// Extract the replay path. Panics if not a [`Self::Replay`]
+    /// Extract the replay path. Panics if not a [`RRConfig::Replay`]
     pub fn replay_unwrap(&self) -> &String {
         self.replay()
             .expect("missing path to recording trace (specify `--record` option)")
@@ -1042,6 +1042,10 @@ impl Config {
     ///
     /// [proposal]: https://github.com/webassembly/relaxed-simd
     pub fn relaxed_simd_deterministic(&mut self, enable: bool) -> &mut Self {
+        assert!(
+            enable || !self.check_determinism(),
+            "Deterministic relaxed SIMD cannot be disabled when record/replay is enabled"
+        );
         self.tunables.relaxed_simd_deterministic = Some(enable);
         self
     }
@@ -1344,6 +1348,10 @@ impl Config {
     /// The default value for this is `false`
     #[cfg(any(feature = "cranelift", feature = "winch"))]
     pub fn cranelift_nan_canonicalization(&mut self, enable: bool) -> &mut Self {
+        assert!(
+            enable || !self.check_determinism(),
+            "NaN canonicalization cannot be disabled when record/replay is enabled"
+        );
         let val = if enable { "true" } else { "false" };
         self.compiler_config
             .settings
@@ -2667,11 +2675,32 @@ impl Config {
         self
     }
 
+    /// Enforce deterministic execution configurations
+    ///
+    /// Required for faithful record/replay execution. Currently, this does the following:
+    /// * Enables NaN canonicalization with [`Config::cranelift_nan_canonicalization`]
+    /// * Enables deterministic relaxed SIMD with [`Config::relaxed_simd_deterministic`]
+    #[inline]
+    pub fn enforce_determinism(&mut self) -> &mut Self {
+        self.cranelift_nan_canonicalization(true)
+            .relaxed_simd_deterministic(true);
+        self
+    }
+
+    /// Evaluates to true if current configuration must respect
+    /// deterministic execution in its configuration
+    ///
+    /// Required for faithful record/replay execution
+    #[inline]
+    pub fn check_determinism(&mut self) -> bool {
+        self.rr.is_some()
+    }
+
     /// Configure the record/replay options for use by the runtime
     ///
-    /// These options are derived from CLI configuration, which
-    /// enforces that both record and replay cannot both be set simultaneously.
-    pub fn rr(&mut self, record_path: &Option<String>, replay_path: &Option<String>) {
+    /// This method implicitly enforces determinism (see [`Config::enforce_determinism`]
+    /// for details). Panics if both record and replay are set simultaneously
+    pub fn rr(&mut self, record_path: &Option<String>, replay_path: &Option<String>) -> &mut Self {
         self.rr = match (record_path, replay_path) {
             // Should be unreachable
             (Some(_), Some(_)) => {
@@ -2680,7 +2709,12 @@ impl Config {
             (Some(p), None) => Some(RRConfig::Record(p.into())),
             (None, Some(p)) => Some(RRConfig::Replay(p.into())),
             _ => None,
-        }
+        };
+        // Set appropriate configurations for determinstic execution
+        if self.rr.is_some() {
+            self.enforce_determinism();
+        };
+        self
     }
 }
 
