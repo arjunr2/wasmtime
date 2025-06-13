@@ -79,6 +79,7 @@
 use crate::RootSet;
 use crate::module::RegisteredModuleId;
 use crate::prelude::*;
+use crate::runtime::rr::{RRBuffer, RREvent};
 #[cfg(feature = "gc")]
 use crate::runtime::vm::GcRootsList;
 #[cfg(feature = "stack-switching")]
@@ -398,11 +399,11 @@ pub struct StoreOpaque {
     /// Storage for recording execution
     ///
     /// `None` implies recording is disabled for this store
-    record_buffer: Option<Vec<u8>>,
+    record_buffer: Option<RRBuffer>,
     /// Storage for replaying execution
     ///
     /// `None` implies replay is disabled for this store
-    replay_buffer: Option<Vec<u8>>,
+    replay_buffer: Option<RRBuffer>,
 }
 
 /// Executor state within `StoreOpaque`.
@@ -587,8 +588,12 @@ impl<T> Store<T> {
                 debug_assert!(engine.target().is_pulley());
                 Executor::Interpreter(Interpreter::new(engine))
             },
-            record_buffer: engine.rr().and_then(|x| x.record().and(Some(Vec::new()))),
-            replay_buffer: engine.rr().and_then(|x| x.replay().and(Some(Vec::new()))),
+            record_buffer: engine
+                .rr()
+                .and_then(|x| x.record().and(Some(RRBuffer::new()))),
+            replay_buffer: engine
+                .rr()
+                .and_then(|x| x.replay().and(Some(RRBuffer::new()))),
         };
         let mut inner = Box::new(StoreInner {
             inner,
@@ -1343,6 +1348,16 @@ impl StoreOpaque {
     #[inline]
     pub fn vm_store_context(&self) -> &VMStoreContext {
         &self.vm_store_context
+    }
+
+    #[inline]
+    pub(crate) fn record_buffer_mut(&mut self) -> Option<&mut RRBuffer> {
+        self.record_buffer.as_mut()
+    }
+
+    #[inline]
+    pub(crate) fn replay_buffer_mut(&mut self) -> Option<&mut RRBuffer> {
+        self.replay_buffer.as_mut()
     }
 
     #[inline(never)]

@@ -1,5 +1,6 @@
 use crate::prelude::*;
 use crate::runtime::Uninhabited;
+use crate::runtime::rr::{RRBuffer, RREvent};
 use crate::runtime::vm::{
     ExportFunction, InterpreterRef, SendSyncPtr, StoreBox, VMArrayCallHostFuncContext,
     VMCommonStackInformation, VMContext, VMFuncRef, VMFunctionImport, VMOpaqueContext,
@@ -2324,7 +2325,6 @@ impl HostContext {
                 NonNull::slice_from_raw_parts(args.cast::<MaybeUninit<ValRaw>>(), args_len);
             let vmctx = VMArrayCallHostFuncContext::from_opaque(callee_vmctx);
             let state = vmctx.as_ref().host_state();
-
             // Double-check ourselves in debug mode, but we control
             // the `Any` here so an unsafe downcast should also
             // work.
@@ -2337,12 +2337,29 @@ impl HostContext {
                     break 'ret R::fallible_from_error(trap);
                 }
 
+                // Record interception
+                {
+                    let record_buffer = caller.store.0.record_buffer_mut();
+                    if let Some(buf) = record_buffer {
+                        let call_event = RREvent::extern_call_from_valraw_slice(args.as_ref());
+                        println!("Record | {:?}", &call_event);
+                        buf.append(call_event);
+                    }
+                    // Replay interception
+                    let replay_buffer = caller.store.0.replay_buffer_mut();
+                    if let Some(buf) = replay_buffer {
+                        let call_event = buf.pop_front();
+                        println!("Replay | {:?}", &call_event);
+                    }
+                }
+
                 let mut store = if P::may_gc() {
                     AutoAssertNoGc::new(caller.store.0)
                 } else {
                     unsafe { AutoAssertNoGc::disabled(caller.store.0) }
                 };
                 let params = P::load(&mut store, args.as_mut());
+
                 let _ = &mut store;
                 drop(store);
 
@@ -2362,6 +2379,11 @@ impl HostContext {
                     unsafe { AutoAssertNoGc::disabled(caller.store.0) }
                 };
                 let ret = ret.store(&mut store, args.as_mut())?;
+                {
+                    // Record the values
+                    let x = RREvent::extern_return_from_valraw_slice(args.as_ref());
+                    println!("{:?}", x);
+                }
                 Ok(ret)
             }
         };
